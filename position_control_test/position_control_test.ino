@@ -9,7 +9,7 @@ const float SUPPLY_VOLTAGE = 12;
 const int POLE_PAIRS = 7;
 const float SWEEP_LOW = 0;
 const float SWEEP_HIGH = TWO_PI;
-const float ARRIVE_TOLERANCE = 0.12f;
+const float ARRIVE_TOLERANCE_DEFAULT = 0.12f;
 const unsigned long STATUS_INTERVAL_MS = 500;
 const unsigned long SERIAL_WAIT_MS = 3000;
 const int ENCODER_ADDRESS = 0x36;
@@ -37,6 +37,7 @@ float target_angle = SWEEP_LOW;
 bool sweep_to_high = true;
 bool manual_target = false;
 unsigned long last_status_time = 0;
+float arrive_tolerance = ARRIVE_TOLERANCE_DEFAULT;
 
 // Setup
 void setup() {
@@ -55,6 +56,7 @@ void setup() {
   ready = true;
   Serial.println("Motor ready, sweeping 0 to 6.28");
   Serial.println("T<angle> manual, S resume sweep");
+  Serial.println("P I D R F A L E tune, send letter alone to read");
 }
 
 // Loop
@@ -145,6 +147,14 @@ void initSweep() {
   sweep_to_high = true;
   command.add('T', doTarget, "manual target");
   command.add('S', doResumeSweep, "resume sweep");
+  command.add('P', doVelocityP, "velocity P");
+  command.add('I', doVelocityI, "velocity I");
+  command.add('D', doVelocityD, "velocity D");
+  command.add('R', doOutputRamp, "output ramp");
+  command.add('F', doVelocityFilter, "velocity filter");
+  command.add('A', doAngleP, "angle P");
+  command.add('L', doVoltageLimit, "voltage limit");
+  command.add('E', doArriveTolerance, "arrive tolerance");
 }
 
 // Set manual target from serial
@@ -165,6 +175,46 @@ void doResumeSweep(char* command_text) {
   Serial.println("Sweep resumed");
 }
 
+// Set velocity loop P gain
+void doVelocityP(char* command_text) {
+  command.scalar(&motor.PID_velocity.P, command_text);
+}
+
+// Set velocity loop I gain
+void doVelocityI(char* command_text) {
+  command.scalar(&motor.PID_velocity.I, command_text);
+}
+
+// Set velocity loop D gain
+void doVelocityD(char* command_text) {
+  command.scalar(&motor.PID_velocity.D, command_text);
+}
+
+// Set velocity loop output ramp
+void doOutputRamp(char* command_text) {
+  command.scalar(&motor.PID_velocity.output_ramp, command_text);
+}
+
+// Set velocity low pass filter time constant
+void doVelocityFilter(char* command_text) {
+  command.scalar(&motor.LPF_velocity.Tf, command_text);
+}
+
+// Set position loop P gain
+void doAngleP(char* command_text) {
+  command.scalar(&motor.P_angle.P, command_text);
+}
+
+// Set motor voltage limit
+void doVoltageLimit(char* command_text) {
+  command.scalar(&motor.voltage_limit, command_text);
+}
+
+// Set sweep arrive tolerance in radians
+void doArriveTolerance(char* command_text) {
+  command.scalar(&arrive_tolerance, command_text);
+}
+
 // Flip sweep target after motor arrives
 void updateSweep() {
   // Check manual target
@@ -172,7 +222,7 @@ void updateSweep() {
 
   // Check error
   float error = target_angle - motor.shaft_angle;
-  if (fabs(error) > ARRIVE_TOLERANCE) return;
+  if (fabs(error) > arrive_tolerance) return;
 
   // Flip sweep target
   if (sweep_to_high) {

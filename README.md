@@ -51,6 +51,20 @@ Open Serial Monitor at 115200 baud. On boot the motor sweeps between 0 and 6.28 
 |---------|--------|
 | `T<angle>` | Set manual target in radians, example `T1.57` |
 | `S` | Resume automatic sweep |
+| `P<value>` | Velocity loop P gain |
+| `I<value>` | Velocity loop I gain |
+| `D<value>` | Velocity loop D gain |
+| `R<value>` | Velocity loop output ramp, volts per second |
+| `F<value>` | Velocity low pass filter time constant |
+| `A<value>` | Position loop P gain, angle P |
+| `L<value>` | Motor voltage limit |
+| `E<value>` | Sweep arrive tolerance in radians |
+
+Send a letter alone to read the current value, for example `P` or `E`.
+
+### What is angle P?
+
+Position control uses two cascaded loops. The outer loop compares target angle to measured angle and outputs a desired velocity. **Angle P** is the proportional gain on that outer loop, `motor.P_angle.P`. Higher values track position faster and feel stiffer. Too high causes overshoot and vibration. The inner velocity loop, tuned with P, I, and D, turns that velocity command into motor voltage.
 
 Stats print every 500 ms: position, target, error, velocity, and voltage.
 
