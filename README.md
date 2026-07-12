@@ -7,7 +7,7 @@ Arduino position control for a BLDC gimbal motor using SimpleFOC on a Seeed XIAO
 - **MCU:** Seeed XIAO SAMD21
 - **Driver:** SimpleFOC Mini v1.0
 - **Encoder:** AS5600 over I2C
-- **Motor:** 2804, 7 pole pairs, 12N14P
+- **Motor:** [2804 kit](https://www.amazon.com/dp/B0FXKN9YMJ), 7 pole pairs, 12N14P
 
 ## Wiring
 
