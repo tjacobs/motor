@@ -9,21 +9,22 @@ const float SUPPLY_VOLTAGE = 12;
 const int POLE_PAIRS = 7;
 const float SWEEP_LOW = 0;
 const float SWEEP_HIGH = TWO_PI;
-const float ARRIVE_TOLERANCE_DEFAULT = 0.12f;
+const unsigned long SWEEP_INTERVAL_MS_DEFAULT = 3000;
 const unsigned long STATUS_INTERVAL_MS = 500;
 const unsigned long SERIAL_WAIT_MS = 3000;
+const unsigned long MOTOR_RETRY_MS = 2000;
 const int ENCODER_ADDRESS = 0x36;
 const int I2C_CLOCK = 400000;
 
 // PID
-const float PID_VELOCITY_P = 0.1f;
+const float PID_VELOCITY_P = 0.6f;
 const float PID_VELOCITY_I = 0;
 const float PID_VELOCITY_D = 0.001f;
 const float PID_OUTPUT_RAMP = 1000;
-const float PID_VELOCITY_FILTER = 0.01f;
+const float PID_VELOCITY_FILTER = 0.05f;
 const float PID_ANGLE_P = 10;
-const float MOTOR_VELOCITY_LIMIT = 4;
-const float MOTOR_VOLTAGE_LIMIT = 6;
+const float MOTOR_VELOCITY_LIMIT = 5;
+const float MOTOR_VOLTAGE_LIMIT = 12;
 
 // Controllers
 MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
@@ -32,12 +33,13 @@ BLDCDriver3PWM driver = BLDCDriver3PWM(1, 2, 3, 7);
 Commander command = Commander(Serial);
 
 // Globals
-bool ready = false;
 float target_angle = SWEEP_LOW;
 bool sweep_to_high = true;
 bool manual_target = false;
 unsigned long last_status_time = 0;
-float arrive_tolerance = ARRIVE_TOLERANCE_DEFAULT;
+unsigned long last_motor_retry = 0;
+unsigned long last_sweep_time = 0;
+float sweep_interval_ms = SWEEP_INTERVAL_MS_DEFAULT;
 
 // Setup
 void setup() {
@@ -48,26 +50,32 @@ void setup() {
 
   // Init board, encoder, motor, and sweep
   disableBoardLeds();
-  if (!initEncoder()) return;
+  if (!initEncoder()) {
+    while (true) delay(1000);
+  }
   initMotor();
   initSweep();
 
-  // Set ready
-  ready = true;
-  Serial.println("Motor ready, sweeping 0 to 6.28");
+  // Start motor, or wait for 12V power
+  if (startMotor()) {
+    Serial.println("Motor ready, sweeping 0 to 6.28");
+  } else {
+    Serial.println("Waiting for 12V motor power");
+  }
   Serial.println("T<angle> manual, S resume sweep");
   Serial.println("P I D R F A L V E tune, send letter alone to read");
 }
 
 // Loop
 void loop() {
-  // Check ready
-  if (!ready) return;
+  // Retry motor start if 12V was applied after boot
+  tryStartMotor();
+  command.run();
+  if (motor.motor_status != FOCMotorStatus::motor_ready) return;
 
   // Run FOC, move to target, handle commands and sweep
   motor.loopFOC();
   motor.move(target_angle);
-  command.run();
   updateSweep();
 
   // Print stats on interval
@@ -137,7 +145,27 @@ void initMotor() {
   motor.velocity_limit = MOTOR_VELOCITY_LIMIT;
   motor.voltage_limit = MOTOR_VOLTAGE_LIMIT;
   motor.init();
-  motor.initFOC();
+}
+
+// Run FOC alignment and enable motor
+bool startMotor() {
+  if (motor.motor_status == FOCMotorStatus::motor_ready) return true;
+  motor.enable();
+  if (!motor.initFOC()) {
+    Serial.println("Waiting for 12V motor power");
+    return false;
+  }
+  Serial.println("Motor started, sweeping 0 to 6.28");
+  return true;
+}
+
+// Retry motor start on interval until 12V is available
+void tryStartMotor() {
+  if (motor.motor_status == FOCMotorStatus::motor_ready) return;
+  unsigned long now = millis();
+  if (now - last_motor_retry < MOTOR_RETRY_MS) return;
+  last_motor_retry = now;
+  startMotor();
 }
 
 // Register serial commands and set sweep start
@@ -145,6 +173,7 @@ void initSweep() {
   // Set up sweep
   target_angle = SWEEP_LOW;
   sweep_to_high = true;
+  last_sweep_time = millis();
   command.add('T', doTarget, "manual target");
   command.add('S', doResumeSweep, "resume sweep");
   command.add('P', doVelocityP, "velocity P");
@@ -155,7 +184,7 @@ void initSweep() {
   command.add('A', doAngleP, "angle P");
   command.add('L', doVoltageLimit, "voltage limit");
   command.add('V', doVelocityLimit, "velocity limit");
-  command.add('E', doArriveTolerance, "arrive tolerance");
+  command.add('E', doSweepInterval, "sweep interval ms");
 }
 
 // Set manual target from serial
@@ -173,6 +202,7 @@ void doResumeSweep(char* command_text) {
   manual_target = false;
   sweep_to_high = true;
   target_angle = SWEEP_LOW;
+  last_sweep_time = millis();
   Serial.println("Sweep resumed");
 }
 
@@ -217,19 +247,20 @@ void doVelocityLimit(char* command_text) {
   motor.updateVelocityLimit(motor.velocity_limit);
 }
 
-// Set sweep arrive tolerance in radians
-void doArriveTolerance(char* command_text) {
-  command.scalar(&arrive_tolerance, command_text);
+// Set sweep interval in milliseconds
+void doSweepInterval(char* command_text) {
+  command.scalar(&sweep_interval_ms, command_text);
 }
 
-// Flip sweep target after motor arrives
+// Flip sweep target on timer
 void updateSweep() {
   // Check manual target
   if (manual_target) return;
 
-  // Check error
-  float error = target_angle - motor.shaft_angle;
-  if (fabs(error) > arrive_tolerance) return;
+  // Check sweep interval
+  unsigned long now = millis();
+  if (now - last_sweep_time < (unsigned long)sweep_interval_ms) return;
+  last_sweep_time = now;
 
   // Flip sweep target
   if (sweep_to_high) {

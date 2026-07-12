@@ -45,7 +45,7 @@ arduino-cli upload -p /dev/cu.usbmodem101 --fqbn Seeeduino:samd:seeed_XIAO_m0 po
 
 ## Usage
 
-Open Serial Monitor at 115200 baud. On boot the motor sweeps between 0 and 6.28 rad.
+Open Serial Monitor at 115200 baud. On boot the motor sweeps between 0 and 6.28 rad on a timer, default 3 seconds per direction.
 
 | Command | Action |
 |---------|--------|
@@ -59,7 +59,7 @@ Open Serial Monitor at 115200 baud. On boot the motor sweeps between 0 and 6.28 
 | `A<value>` | Position loop P gain, angle P |
 | `L<value>` | Motor voltage limit |
 | `V<value>` | Motor velocity limit |
-| `E<value>` | Sweep arrive tolerance in radians |
+| `E<value>` | Sweep interval in milliseconds |
 
 Send a letter alone to read the current value, for example `P` or `E`.
 
@@ -73,6 +73,7 @@ Stats print every 500 ms: position, target, error, velocity, and voltage.
 
 - **AS5600 not found:** Check SDA on D4, SCL on D5, GND, and 3.3V or 5V on the encoder module.
 - **Red LED on SimpleFOC Mini:** DRV8313 fault, often from 12V overcurrent. Disconnect power, wait, and repower.
+- **Motor idle after boot:** 12V can be applied after the MCU boots. The sketch retries FOC init every 2 seconds once power is on.
 - **Upload fails:** Close Serial Monitor and retry.
 
 ## Project layout
