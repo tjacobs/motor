@@ -56,7 +56,7 @@ void setup() {
   ready = true;
   Serial.println("Motor ready, sweeping 0 to 6.28");
   Serial.println("T<angle> manual, S resume sweep");
-  Serial.println("P I D R F A L E tune, send letter alone to read");
+  Serial.println("P I D R F A L V E tune, send letter alone to read");
 }
 
 // Loop
@@ -154,6 +154,7 @@ void initSweep() {
   command.add('F', doVelocityFilter, "velocity filter");
   command.add('A', doAngleP, "angle P");
   command.add('L', doVoltageLimit, "voltage limit");
+  command.add('V', doVelocityLimit, "velocity limit");
   command.add('E', doArriveTolerance, "arrive tolerance");
 }
 
@@ -208,6 +209,12 @@ void doAngleP(char* command_text) {
 // Set motor voltage limit
 void doVoltageLimit(char* command_text) {
   command.scalar(&motor.voltage_limit, command_text);
+}
+
+// Set motor velocity limit
+void doVelocityLimit(char* command_text) {
+  command.scalar(&motor.velocity_limit, command_text);
+  motor.updateVelocityLimit(motor.velocity_limit);
 }
 
 // Set sweep arrive tolerance in radians

@@ -58,6 +58,7 @@ Open Serial Monitor at 115200 baud. On boot the motor sweeps between 0 and 6.28 
 | `F<value>` | Velocity low pass filter time constant |
 | `A<value>` | Position loop P gain, angle P |
 | `L<value>` | Motor voltage limit |
+| `V<value>` | Motor velocity limit |
 | `E<value>` | Sweep arrive tolerance in radians |
 
 Send a letter alone to read the current value, for example `P` or `E`.
